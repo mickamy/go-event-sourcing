@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	ges "github.com/mickamy/go-event-sourcing"
+	"github.com/mickamy/go-event-sourcing"
 )
 
 type Account struct {
