@@ -3,29 +3,19 @@ package main
 import (
 	"fmt"
 
-	"github.com/mickamy/go-event-sourcing"
+	ges "github.com/mickamy/go-event-sourcing"
 )
 
-// Account is the aggregate root that enforces domain rules and emits events.
 type Account struct {
-	id      string
+	ges.Base
 	owner   string
 	balance int64
-	version int64       // current version (after applying pending)
-	pend    []ges.Event // uncommitted domain events
 	opened  bool
 }
 
-func (a *Account) record(e ges.Event) {
-	a.Apply(e)
-	a.pend = append(a.pend, e)
-}
+func (a *Account) Balance() int64 { return a.balance }
 
-func (a *Account) Balance() int64 {
-	return a.balance
-}
-
-// Handle routes a command to domain logic and records resulting events.
+// Handle routes a command and records resulting events via Raise.
 func (a *Account) Handle(cmd any) error {
 	switch c := cmd.(type) {
 	case OpenAccountCommand:
@@ -38,7 +28,7 @@ func (a *Account) Handle(cmd any) error {
 		if c.Initial < 0 {
 			return fmt.Errorf("initial balance cannot be negative")
 		}
-		a.record(AccountOpened{AccountID: c.AccountID, Owner: c.Owner, Initial: c.Initial})
+		a.Raise(AccountOpened{AccountID: c.AccountID, Owner: c.Owner, Initial: c.Initial})
 		return nil
 
 	case DepositCommand:
@@ -48,43 +38,30 @@ func (a *Account) Handle(cmd any) error {
 		if c.Amount <= 0 {
 			return fmt.Errorf("invalid deposit amount")
 		}
-		a.record(MoneyDeposited{Amount: c.Amount})
+		a.Raise(MoneyDeposited{Amount: c.Amount})
 		return nil
 	}
-
 	return fmt.Errorf("unknown command type %T", cmd)
 }
 
-func (a *Account) StreamID() string { return "Account:" + a.id }
-
-func (a *Account) Apply(e ges.Event) {
+// applier: state mutation per event (used by Base.Apply/Raise).
+func (a *Account) when(e ges.Event) {
 	switch ev := e.(type) {
 	case AccountOpened:
-		a.id = ev.AccountID
+		a.SetStreamID("Account:" + ev.AccountID)
 		a.owner = ev.Owner
 		a.balance = ev.Initial
 		a.opened = true
 	case MoneyDeposited:
 		a.balance += ev.Amount
 	}
-	a.version++
 }
 
+// Restore replays committed events (helper used by repository).
 func (a *Account) Restore(events []ges.Event) {
 	for _, e := range events {
-		a.Apply(e)
+		a.Apply(e) // Base.Apply → when() → version++
 	}
 }
-
-func (a *Account) Flush() ([]ges.Event, int64) {
-	n := int64(len(a.pend))
-	expected := a.version - n
-	evs := make([]ges.Event, len(a.pend))
-	copy(evs, a.pend)
-	a.pend = nil
-	return evs, expected
-}
-
-func (a *Account) Version() int64 { return a.version }
 
 var _ ges.Aggregate = (*Account)(nil)

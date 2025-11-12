@@ -21,8 +21,10 @@ func NewAccountRepository(store ges.EventStore) *AccountRepository {
 // It tries a snapshot first, then loads the delta events.
 func (r *AccountRepository) Load(ctx context.Context, id string) (*Account, error) {
 	streamID := "Account:" + id
-
 	var a Account
+
+	// Initialize Base with stream ID and applier before any replay/snapshot.
+	a.Init(streamID, a.when)
 
 	// 1) Try snapshot
 	snap, err := r.store.LoadSnapshot(ctx, streamID)
@@ -32,11 +34,12 @@ func (r *AccountRepository) Load(ctx context.Context, id string) (*Account, erro
 	if s, ok, err := decodeSnapshot(snap); err != nil {
 		return nil, err
 	} else if ok {
-		a.id = s.ID
+		// restore basic fields
+		a.SetStreamID("Account:" + s.ID)
 		a.owner = s.Owner
 		a.balance = s.Balance
-		a.version = s.Version
 		a.opened = s.ID != ""
+		a.SetVersion(s.Version)
 	}
 
 	// 2) Apply delta events
@@ -46,12 +49,9 @@ func (r *AccountRepository) Load(ctx context.Context, id string) (*Account, erro
 	}
 	a.Restore(evs)
 	if last != a.Version() {
-		return nil, fmt.Errorf(
-			"version mismatch after Restore: aggregate=%d, store=%d",
-			a.Version(), last,
-		)
+		return nil, fmt.Errorf("version mismatch after Restore: aggregate=%d, store=%d",
+			a.Version(), last)
 	}
-
 	return &a, nil
 }
 

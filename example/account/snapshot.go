@@ -2,9 +2,19 @@ package main
 
 import (
 	"encoding/json"
+	"strings"
 
 	"github.com/mickamy/go-event-sourcing"
 )
+
+const accountPrefix = "Account:"
+
+func accountIDFromStreamID(s string) string {
+	if strings.HasPrefix(s, accountPrefix) {
+		return strings.TrimPrefix(s, accountPrefix)
+	}
+	return s
+}
 
 // AccountSnapshot is the persisted state shape stored in snapshots.
 type AccountSnapshot struct {
@@ -17,10 +27,10 @@ type AccountSnapshot struct {
 // serializeState converts the in-memory aggregate into a persistable snapshot.
 func serializeState(a *Account) any {
 	return AccountSnapshot{
-		ID:      a.id,
+		ID:      accountIDFromStreamID(a.StreamID()),
 		Owner:   a.owner,
 		Balance: a.balance,
-		Version: a.version,
+		Version: a.Version(),
 	}
 }
 
