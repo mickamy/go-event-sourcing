@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS events
 (
     stream_id  TEXT        NOT NULL,
     version    BIGINT      NOT NULL,
-    event_id   UUID PRIMARY KEY     DEFAULT gen_random_uuid(),
+    event_id   UUID                 DEFAULT gen_random_uuid(),
     event_type TEXT        NOT NULL,
     payload    JSONB       NOT NULL,
     metadata   JSONB       NOT NULL DEFAULT '{}'::jsonb,
