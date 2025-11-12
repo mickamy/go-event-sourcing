@@ -69,6 +69,7 @@ jobs:
         working-directory: ${{ matrix.module_dir }}
 
       - name: Wait for Postgres
+        if: ${{ matrix.module_dir == 'stores/pgx' }}
         run: |
           for i in {1..30}; do
             pg_isready -h localhost -U postgres && exit 0
@@ -78,6 +79,7 @@ jobs:
           exit 1
 
       - name: Run postgres init script
+        if: ${{ matrix.module_dir == 'stores/pgx' }}
         run: PGPASSWORD=password psql -h localhost -p 5432 -U postgres -d postgres -f ./docker/postgres/init.sql
 
       - name: Run tests
