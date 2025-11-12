@@ -11,11 +11,11 @@ type Metadata map[string]any
 // Merge returns a new Metadata that combines the receiver with the given maps.
 // It is safe to call on a nil receiver. Later maps take precedence over earlier ones.
 // The receiver is not modified.
-func (m Metadata) Merge(ms ...Metadata) Metadata {
+func (m *Metadata) Merge(ms ...Metadata) Metadata {
 	out := make(Metadata)
 
 	if m != nil {
-		for k, v := range m {
+		for k, v := range *m {
 			out[k] = v
 		}
 	}
