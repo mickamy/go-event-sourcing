@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ "**" ]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint (golangci-lint)
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        module_dir: ['.', 'stores/mem', 'stores/pgx']
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '>=1.25.0'
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          args: --timeout=5m --verbose ./...
+          working-directory: ${{ matrix.module_dir }}
+
+  test:
+    name: Unit Tests (matrix)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16.4-alpine
+        env:
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    strategy:
+      fail-fast: false
+      matrix:
+        go: ['1.24.x', '1.25.x']
+        module_dir: ['.', 'stores/mem', 'stores/pgx']
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ matrix.go }}
+
+      - name: Go env
+        run: |
+          go version
+          go env
+
+      - name: Download deps
+        run: go mod download
+        working-directory: ${{ matrix.module_dir }}
+
+      - name: Wait for Postgres
+        run: |
+          for i in {1..30}; do
+            pg_isready -h localhost -U postgres && exit 0
+            sleep 1
+          done
+          echo "Postgres not ready" >&2
+          exit 1
+
+      - name: Run postgres init script
+        run: PGPASSWORD=password psql -h localhost -p 5432 -U postgres -d postgres -f ./docker/postgres/init.sql
+
+      - name: Run tests
+        run: |
+          go test ./... -race -count=1
+        working-directory: ${{ matrix.module_dir }}
