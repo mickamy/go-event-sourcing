@@ -25,3 +25,8 @@ func (e *VersionConflictError) Error() string {
 func (e *VersionConflictError) Is(target error) bool {
 	return target == ErrVersionConflict
 }
+
+// Unwrap returns the underlying sentinel error ErrVersionConflict,
+func (e *VersionConflictError) Unwrap() error {
+	return ErrVersionConflict
+}
